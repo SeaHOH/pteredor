@@ -1,8 +1,12 @@
 # pteredor
 A tool to help evaluate the teredo servers.
 
+# Compatible
+Tested with Python 2.7 & 3.4 & 3.5 & 3.6.
+Get [win_inet_pton](https://github.com/SeaHOH/win_inet_pton) for Python 2.
+
 # Usage
-Run use default teredo server list
+Run use default teredo server list.
 ```
 python pteredor.py
 ```
@@ -14,7 +18,7 @@ or
 >>> pteredor.main()
 ```
 
-Run append custom teredo server list
+Run append custom teredo server list.
 ```
 python pteredor.py server1 server2 ...
 ```
