@@ -35,7 +35,6 @@ try:
     import thread
 except:
     import _thread as thread
-Lock = thread.allocate_lock
 
 logger = logging.getLogger('pteredor')
 
@@ -150,32 +149,22 @@ def str2hex(str):
 
 class deque(collections.deque):
 
-    def __init__(self):
-        self.lock = Lock()
-
     def put(self, v):
-        with self.lock:
-            return self.append(v)
+        self.append(v)
 
     def get(self):
-        with self.lock:
-            return self.popleft() if self else None
+        try:
+            return self.popleft()
+        except:
+            return None
 
 class default_prober_dict(dict):
 
     def __init__(self):
-        self.lock = Lock()
         self['nonce'] = None
-        self['pkt'] = None
         self['addr'] = None
         self['rs_packet'] = None
         self['ra_packets'] = deque()
-
-    def __setitem__(self, k, v):
-        with self.lock:
-            dict.__setitem__(self, k, v)
-
-teredo_prober_dict = collections.defaultdict(default_prober_dict)
 
 class teredo_prober(object):
 
@@ -185,12 +174,12 @@ class teredo_prober(object):
     rs_cone_flag = 1
     timeout = teredo_timeout
     teredo_port = teredo_port
-    prober_dict = teredo_prober_dict
 
     def __init__(self, sock, server_list, probe_nat_type=True):
         self.teredo_sock = sock
-        server_ip_list = []
+        self.prober_dict = collections.defaultdict(default_prober_dict)
         self.ip2server = {}
+        server_ip_list = []
         if isinstance(server_list, str):
             server_list = [server_list]
         for server in server_list:
@@ -213,30 +202,22 @@ class teredo_prober(object):
     def unpack_indication(self, data):
         return struct.unpack('!2s4s', data[2:8])
 
-    def handle_ra_packet(self, indicate_pkt, ipv6_pkt):
-        obfuscated_port, obfuscated_ip = self.unpack_indication(indicate_pkt)
-        flag = bytearray(ipv6_pkt)[16] >> 7 & 1
-        logger.debug('ipv6_pkt ; RA_cone = %s\nobfuscated: %s:%s\nsrc:%s\ndst:%s' % (
-                flag,
-                str2hex(obfuscated_ip),
-                str2hex(obfuscated_port),
+    def handle_ra_packet(self, ipv6_pkt):
+        server_ip = socket.inet_ntoa(ipv6_pkt[76:80])
+        cone_flag = bytearray(ipv6_pkt)[32] >> 7 & 1
+        logger.debug('ipv6_pkt ; RA_cone = %s\nsrc:%s\ndst:%s' % (
+                cone_flag,
                 str2hex(ipv6_pkt[8:24]),
                 str2hex(ipv6_pkt[24:40])))
-        return flag, (obfuscated_port, obfuscated_ip)
+        return server_ip, cone_flag
 
     def receive_ra_packet(self):
         data, addr = self.teredo_sock.recvfrom(10240)
         ip, port = addr
-        if (ip not in self.server_ip_list or
-            port != self.teredo_port or
-            len(data) < 40
-            ):
-            logger.debug('ipv6_pkt ; drop:\n%s' % str2hex(data))
+        if port != self.teredo_port or len(data) < 40:
+            logger.debug('ipv6_pkt ;1 drop:\n%s' % str2hex(data))
             return
         auth_pkt = indicate_pkt = ipv6_pkt = None
-        if len(data) < 40:
-            logger.debug('ipv6_pkt ; drop:\n%s' % str2hex(data))
-            return
         if data[0:2] == b'\x00\x01':
             auth_len = 13 + sum(struct.unpack('2B', data[2:4]))
             auth_pkt = data[0:auth_len]
@@ -245,17 +226,23 @@ class teredo_prober(object):
                 ipv6_pkt = data[auth_len + 8:]
         if (auth_pkt is None or
             indicate_pkt is None or
-            auth_pkt[4:12] != self.prober_dict[ip]['rs_packet'].nonce or
+            ipv6_pkt is None or
             bytearray(ipv6_pkt)[0] & 0xf0 != 0x60 or
-            struct.unpack('!H', ipv6_pkt[4:6])[0]+40 != len(ipv6_pkt)
+            bytearray(ipv6_pkt)[40] != 134 or
+            struct.unpack('!H', ipv6_pkt[4:6])[0] + 40 != len(ipv6_pkt)
             ):
-            logger.debug('ipv6_pkt ; drop:\n%s' % str2hex(data))
+            logger.debug('ipv6_pkt ;2 drop:\n%s' % str2hex(data))
             return
-        ra_packet = {'addr': addr,
+        server_ip, ra_cone_flag = self.handle_ra_packet(ipv6_pkt)
+        logger.debug('server ip: %s ; received ip: %s' % (server_ip, ip))
+        if auth_pkt[4:12] != self.prober_dict[server_ip]['rs_packet'].nonce:
+            logger.debug('ipv6_pkt ;3 drop:\n%s' % str2hex(data))
+            return
+        ra_packet = {'addr': (server_ip, port),
                      'nonce': auth_pkt[4:12],
-                     'qualify': self.handle_ra_packet(indicate_pkt, ipv6_pkt)
+                     'qualify': (ra_cone_flag, indicate_pkt)
                      }
-        self.prober_dict[ip]['ra_packets'].put(ra_packet)
+        self.prober_dict[server_ip]['ra_packets'].put(ra_packet)
 
     def receive_loop(self):
         try:
@@ -264,7 +251,7 @@ class teredo_prober(object):
                 if rd and not self._stoped:
                     self.receive_ra_packet()
         except Exception as e:
-            logger.exception(e)
+            logger.exception('receive procedure fail once: %r', e)
             pass
 
     def send_rs_packet(self, rs_packet, dst_ip):
@@ -313,7 +300,7 @@ class teredo_prober(object):
         if ra_qualify is None:
             self.qualified = True
             return 'offline'
-        ra_cone_flag, first_addr = ra_qualify
+        ra_cone_flag, first_indicate = ra_qualify
         if ra_cone_flag:
             self.qualified = True
             return 'cone'
@@ -326,8 +313,8 @@ class teredo_prober(object):
         if ra_qualify is None:
             self.last_server_ip = server_ip
             return 'unknown'
-        ra_cone_flag, second_addr = ra_qualify
-        if first_addr == second_addr:
+        ra_cone_flag, second_indicate = ra_qualify
+        if first_indicate == second_indicate:
             return 'restricted'
         else:
             return 'symmetric'
@@ -339,15 +326,15 @@ class teredo_prober(object):
         queue_obj.put((bool(ra_qualify), self.ip2server[server_ip], server_ip, cost))
 
     def eval_servers(self):
+        eval_list = []
         if not self.qualified:
             self.nat_type = self.nat_type_probe()
         if self.nat_type in ('symmetric', 'offline'):
             print('This device can not use teredo tunnel, the NAT type is %s!' % prober.nat_type)
-            return
+            return eval_list
         print('Starting evaluate servers...')
         self.clear()
         queue_obj = queue.Queue()
-        eval_list = []
         for server_ip in self.server_ip_list:
             thread.start_new_thread(self._eval_servers, (server_ip, queue_obj))
         for _ in self.server_ip_list:
@@ -418,14 +405,13 @@ def test():
     for _ in range(2):
         print(prober.qualify_loop(server_ip))
         prober.rs_cone_flag = prober.rs_cone_flag ^ 1
-    server_ip_list = prober.server_ip_list.copy()
     server_ip = server_ip_list.pop()
     for _ in range(2):
         print(prober.qualify_loop(server_ip))
         prober.rs_cone_flag = prober.rs_cone_flag ^ 1
     prober.close()
 
-    print(main())
+#    print(main())
     sys.exit(0)
 
 runas_vbs = '''
@@ -452,22 +438,23 @@ WScript.quit
 
 local_ip_startswith = tuple(
     ['127', '192.168', '10.'] +
-    ['100.%d.' % (64 + n) for n in range(2**6)] +
-    ['172.%d.' % (16 + n) for n in range(2**4)]
+    ['100.%d.' % (64 + n) for n in range(1 << 6)] +
+    ['172.%d.' % (16 + n) for n in range(1 << 4)]
     )
 
-try:
-    socket.socket(socket.AF_INET, socket.SOCK_RAW)
-    runas = os.system
-except:
-    def runas(cmd):
-        temp = os.path.join(os.path.dirname(__file__), str(int(random.random()*10**8))) + '.vbs'
-        with open(temp, 'w') as f:
-            f.write(runas_vbs % cmd)
-        os.system(temp)
+if os.name == 'nt':
+    try:
+        socket.socket(socket.AF_INET, socket.SOCK_RAW)
+        runas = os.system
+    except:
+        def runas(cmd):
+            temp = str(int(random.random() * 10 ** 8)) + '.vbs'
+            with open(temp, 'w') as f:
+                f.write(runas_vbs % cmd)
+            os.system(temp)
 
 if '__main__' == __name__:    
-#    test()
+    test()
     try:
         raw_input
     except:

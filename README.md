@@ -7,7 +7,7 @@ Tested with Python 2.7 & 3.4 & 3.5 & 3.6.
 Get [win_inet_pton](https://github.com/SeaHOH/win_inet_pton) for Python 2.
 
 # Notice
-Ensure DNS resolve is correct.
+Ensure DNS resolve and firewall setting is correct.
 
 # Usage
 Run use default teredo server list.
