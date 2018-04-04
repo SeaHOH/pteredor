@@ -367,7 +367,14 @@ class teredo_prober(object):
         
 
 def main(*args):
-    server_list = teredo_server_list + list(args)
+    server_list = [] + teredo_server_list
+    for arg in args:
+        if isinstance(arg, str):
+            server_list.append(arg)
+        elif isinstance(arg, list):
+            server_list += arg
+        elif isinstance(arg, tuple):
+            server_list += list(arg)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(('0.0.0.0', 0))
@@ -443,6 +450,12 @@ Set fso = NoThing
 WScript.quit
 '''
 
+local_ip_startswith = tuple(
+    ['127', '192.168', '10.'] +
+    ['100.%d.' % (64 + n) for n in range(2**6)] +
+    ['172.%d.' % (16 + n) for n in range(2**4)]
+    )
+
 try:
     socket.socket(socket.AF_INET, socket.SOCK_RAW)
     runas = os.system
@@ -470,7 +483,9 @@ if '__main__' == __name__:
         print('\nThe recommend server is %r.' % recommend)
         if os.name == 'nt':
             if raw_input('Do you want to set recommend teredo server, Y/N? ').lower() == 'y':
-                runas('netsh interface teredo set state client %s.' % recommend)
+                ip = [a for a in os.popen('route print').readlines() if ' 0.0.0.0 ' in a][0].split()[-2]
+                client = 'enterpriseclient' if ip.startswith(local_ip_startswith) else 'client'
+                runas('netsh interface teredo set state %s %s.' % (client, recommend))
                 time.sleep(1)
                 print(os.system('netsh interface teredo show state'))
     raw_input('Press enter to over...')
