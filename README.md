@@ -45,4 +45,6 @@ teredo.trex.fi 195.140.195.140 410ms
 
 The recommend server is 'win10.ipv6.microsoft.com'.
 Do you want to set recommend teredo server, Y/N? n
+
+Press enter to over...
 ```

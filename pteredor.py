@@ -421,7 +421,7 @@ def test():
     print(main())
     sys.exit(0)
 
-runas_vbs_uac = '''
+runas_vbs = '''
 If WScript.Arguments.length = 0 Then
   Dim objShell
   Set objShell = CreateObject("Shell.Application")
@@ -429,9 +429,7 @@ If WScript.Arguments.length = 0 Then
   Set objShell = NoThing
   WScript.quit
 End If
-'''
 
-runas_vbs = '''
 Dim Wsr
 Set Wsr = WScript.CreateObject("WScript.Shell")
 Wsr.Run "%s", 0, True
@@ -447,14 +445,13 @@ WScript.quit
 
 try:
     socket.socket(socket.AF_INET, socket.SOCK_RAW)
+    runas = os.system
 except:
-    runas_vbs = runas_vbs_uac + runas_vbs
-
-def runas(cmd):
-    temp = os.path.join(os.path.dirname(__file__), str(int(random.random()*10**8))) + '.vbs'
-    with open(temp, 'w') as f:
-        f.write(runas_vbs % cmd)
-    os.system(temp)
+    def runas(cmd):
+        temp = os.path.join(os.path.dirname(__file__), str(int(random.random()*10**8))) + '.vbs'
+        with open(temp, 'w') as f:
+            f.write(runas_vbs % cmd)
+        os.system(temp)
 
 if '__main__' == __name__:    
 #    test()
@@ -476,3 +473,4 @@ if '__main__' == __name__:
                 runas('netsh interface teredo set state client %s.' % recommend)
                 time.sleep(1)
                 print(os.system('netsh interface teredo show state'))
+    raw_input('Press enter to over...')
