@@ -2,10 +2,15 @@
 # coding:utf-8
 
 # A tool to help evaluate the teredo servers.
-# Thanks XndroidDev <https://github.com/XndroidDev/Xndroid> (teredo module)
+# Thanks XndroidDev
 # Author: SeaHOH <seahoh@gmail.com>
 # Version: 0.0.1
 # Compatible: Python 2.7 & 3.4 & 3.5 & 3.6
+# References:
+#   https://tools.ietf.org/html/rfc4380 5.1 5.2
+#   https://tools.ietf.org/html/rfc4861 4.1 4.2
+#   https://tools.ietf.org/html/rfc2460 8.1
+#   https://github.com/XndroidDev/Xndroid/blob/master/fqrouter/manager/teredo.py
 
 import sys
 
@@ -36,7 +41,6 @@ logger = logging.getLogger('pteredor')
 
 
 teredo_timeout = 4
-rs_cone_flag = 1
 teredo_port = 3544
 link_local_addr = 'fe80::ffff:ffff:ffff'
 all_router_multicast = 'ff02::2'
@@ -178,8 +182,8 @@ class teredo_prober(object):
     _stoped = None
     nat_type = 'null'
     qualified = False
+    rs_cone_flag = 1
     timeout = teredo_timeout
-    rs_cone_flag = rs_cone_flag
     teredo_port = teredo_port
     prober_dict = teredo_prober_dict
 
