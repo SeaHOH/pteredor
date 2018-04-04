@@ -378,7 +378,7 @@ def main(*args):
         print('The NAT type is %s.' % prober.nat_type)
         qualified_list = prober.eval_servers()
         for qualified, server, server_ip, cost in qualified_list:
-            print(server, server_ip, cost + 'ms')
+            print('%s %s %sms' % (server, server_ip, cost))
         for qualified, server, server_ip, cost in qualified_list:
             if qualified:
                 recommend = server
@@ -417,6 +417,34 @@ def test():
     print(main())
     sys.exit(0)
 
+runas_vbs = '''
+If WScript.Arguments.length = 0 Then
+  Dim objShell
+  Set objShell = CreateObject("Shell.Application")
+  objShell.ShellExecute "wscript.exe", Chr(34) & WScript.ScriptFullName & Chr(34) & " uac", "", "runas", 1
+  Set objShell = NoThing
+  WScript.quit
+End If
+
+Dim Wsr
+Set Wsr = WScript.CreateObject("WScript.Shell")
+Wsr.Run "%s", 0, True
+Set Wsr = NoThing
+
+Dim fso
+Set fso = CreateObject("scripting.FileSystemObject")
+fso.DeleteFile WScript.ScriptFullName
+Set fso = NoThing
+
+WScript.quit
+'''
+
+def runas(cmd):
+    temp = os.path.join(os.path.dirname(__file__), str(int(random.random()*10**8))) + '.vbs'
+    with open(temp, 'w') as f:
+        f.write(runas_vbs % cmd)
+    os.system(temp)
+
 if '__main__' == __name__:    
 #    test()
     try:
@@ -424,14 +452,16 @@ if '__main__' == __name__:
     except:
         raw_input = input
     if os.name == 'nt':
-        if raw_input('Stop teredo tunnel for run prober, Y/N? ').lower == 'y':
-            cmd = 'netsh interface teredo set state disable'
-            os.system(cmd)
+        if raw_input('Stop teredo tunnel for run prober, Y/N? ').lower() == 'y':
+            runas('netsh interface teredo set state disable')
+            time.sleep(1)
+            print(os.system('netsh interface teredo show state'))
     args = sys.argv[1:]
     recommend = main(*args)
     if recommend:
         print('\nThe recommend server is %r.' % recommend)
         if os.name == 'nt':
-            if raw_input('Do you want to set recommend teredo server, Y/N? ').lower == 'y':
-                cmd = 'netsh interface teredo set state client %s.' % recommend
-                os.system(cmd)
+            if raw_input('Do you want to set recommend teredo server, Y/N? ').lower() == 'y':
+                runas('netsh interface teredo set state client %s.' % recommend)
+                time.sleep(1)
+                print(os.system('netsh interface teredo show state'))
