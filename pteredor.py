@@ -155,6 +155,28 @@ def resolve(host):
    except:
        return []
 
+def ip2int(ip):
+    return struct.unpack('>I', socket.inet_aton(ip))[0]
+
+def remove_same_server(server_ip_list):
+    logger.debug('input ip: %%' % server_ip_list)
+    cleared_list = set()
+    while server_ip_list:
+        ip1 = server_ip_list.pop()
+        _ip1 = ip2int(ip1)
+        for ip2 in server_ip_list:
+            if ip1 == ip2:
+                continue
+            _ip2 = ip2int(ip2)
+            if _ip1 ^ _ip2 == 1:
+                if _ip1 > _ip2:
+                    ip1 = ip2
+                else:
+                    continue
+        cleared_list.add(ip1)
+    logger.debug('cleared ip: %s' % cleared_list)
+    return cleared_list
+
 def str2hex(str):
     str = bytearray(str)
     h = ['']
@@ -196,7 +218,7 @@ class teredo_prober(object):
     def __init__(self, server_list, probe_nat_type=True):
         self.teredo_sock = get_sock()
         self.prober_dict = collections.defaultdict(default_prober_dict)
-        self.ip2server = {}
+        self.ip2server = collections.defaultdict(list)
         server_ip_list = []
         if isinstance(server_list, str):
             server_list = [server_list]
@@ -206,9 +228,9 @@ class teredo_prober(object):
             else:
                 ip_list = resolve(server)
                 for ip in ip_list:
-                    self.ip2server[ip] = server
+                    self.ip2server[ip].append(server)
                 server_ip_list += ip_list
-        self.server_ip_list = set(server_ip_list)
+        self.server_ip_list = remove_same_server(server_ip_list)
         if len(self.server_ip_list) < 2:
             print('Need input more teredo servers, now is %d.' % len(self.server_ip_list))
         if len(self.server_ip_list) < 1:
@@ -391,7 +413,7 @@ def main(*args):
         print('The NAT type is %s.' % prober.nat_type)
         qualified_list = prober.eval_servers()
         for qualified, server, server_ip, cost in qualified_list:
-            print('%s %s %sms' % (server, server_ip, cost))
+            print('%s %s %sms' % (server_ip, server, cost))
         for qualified, server, server_ip, cost in qualified_list:
             if qualified:
                 recommend = server
@@ -482,7 +504,7 @@ if '__main__' == __name__:
             if raw_input('Do you want to set recommend teredo server, Y/N? ').lower() == 'y':
                 ip = [a for a in os.popen('route print').readlines() if ' 0.0.0.0 ' in a][0].split()[-2]
                 client = 'enterpriseclient' if ip.startswith(local_ip_startswith) else 'client'
-                runas('netsh interface teredo set state %s %s.' % (client, recommend))
+                runas('netsh interface teredo set state %s %s.' % (client, recommend.pop()))
                 time.sleep(1)
                 print(os.system('netsh interface teredo show state'))
     raw_input('Press enter to over...')
