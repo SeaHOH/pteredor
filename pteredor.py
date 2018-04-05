@@ -161,19 +161,15 @@ def ip2int(ip):
 def remove_same_server(server_ip_list):
     logger.debug('input ip: %%' % server_ip_list)
     cleared_list = set()
-    while server_ip_list:
-        ip1 = server_ip_list.pop()
+    for ip1 in server_ip_list:
         _ip1 = ip2int(ip1)
         for ip2 in server_ip_list:
-            if ip1 == ip2:
-                continue
-            _ip2 = ip2int(ip2)
-            if _ip1 ^ _ip2 == 1:
-                if _ip1 > _ip2:
-                    ip1 = ip2
-                else:
-                    continue
-        cleared_list.add(ip1)
+            b = _ip1 - ip2int(ip2)
+            if b in (1, -1):
+                cleared_list.add(ip1 if b < 0 else ip2)
+                break
+        if b not in (1, -1):
+            cleared_list.add(ip1)
     logger.debug('cleared ip: %s' % cleared_list)
     return cleared_list
 
@@ -504,7 +500,7 @@ if '__main__' == __name__:
             if raw_input('Do you want to set recommend teredo server, Y/N? ').lower() == 'y':
                 ip = [a for a in os.popen('route print').readlines() if ' 0.0.0.0 ' in a][0].split()[-2]
                 client = 'enterpriseclient' if ip.startswith(local_ip_startswith) else 'client'
-                runas('netsh interface teredo set state %s %s.' % (client, recommend.pop()))
+                runas('netsh interface teredo set state %s %s.' % (client, recommend[0]))
                 time.sleep(1)
                 print(os.system('netsh interface teredo show state'))
     raw_input('Press enter to over...')
