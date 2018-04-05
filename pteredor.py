@@ -25,6 +25,7 @@ import collections
 import time
 import logging
 import select
+import errno
 
 try:
     import queue
@@ -35,6 +36,11 @@ try:
     import thread
 except:
     import _thread as thread
+
+try:
+    raw_input
+except:
+    raw_input = input
 
 logger = logging.getLogger('pteredor')
 
@@ -123,6 +129,18 @@ class teredo_rs_packet(object):
             self._type_restricted = self.creat_rs_packet()
         return self._type_restricted
 
+def get_sock():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    while True:
+        try:
+            port = random.randint(1025, 5000)
+            print('try bind local port:', port)
+            sock.bind(('0.0.0.0', port))
+            return sock
+        except socket.error as e:
+            if e.args[0] == errno.EADDRINUSE:
+                pass
+
 def is_ipv4(ip):
     try:
         socket.inet_aton(ip)
@@ -175,8 +193,8 @@ class teredo_prober(object):
     timeout = teredo_timeout
     teredo_port = teredo_port
 
-    def __init__(self, sock, server_list, probe_nat_type=True):
-        self.teredo_sock = sock
+    def __init__(self, server_list, probe_nat_type=True):
+        self.teredo_sock = get_sock()
         self.prober_dict = collections.defaultdict(default_prober_dict)
         self.ip2server = {}
         server_ip_list = []
@@ -245,14 +263,14 @@ class teredo_prober(object):
         self.prober_dict[server_ip]['ra_packets'].put(ra_packet)
 
     def receive_loop(self):
-        try:
-            while not self._stoped:
+        while not self._stoped:
+            try:
                 rd, _, _ = select.select([self.teredo_sock], [], [], 0.5)
                 if rd and not self._stoped:
                     self.receive_ra_packet()
-        except Exception as e:
-            logger.exception('receive procedure fail once: %r', e)
-            pass
+            except Exception as e:
+                logger.exception('receive procedure fail once: %r', e)
+                pass
 
     def send_rs_packet(self, rs_packet, dst_ip):
         rs_packet = rs_packet.type_cone if self.rs_cone_flag else rs_packet.type_restricted
@@ -362,10 +380,7 @@ def main(*args):
             server_list += arg
         elif isinstance(arg, tuple):
             server_list += list(arg)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(('0.0.0.0', 0))
-    prober = teredo_prober(sock, server_list)
+    prober = teredo_prober(server_list)
     recommend = None
     if prober.nat_type == 'unknown':
         print('We can not judge the NAT type.')
@@ -381,6 +396,7 @@ def main(*args):
             if qualified:
                 recommend = server
                 break
+    prober.close()
     return recommend
 
 def test():
@@ -395,10 +411,7 @@ def test():
     assert(teredo_rs_packet(nonce).type_restricted == bytes(blank_rs_packet))
 
     server_list = ['teredo.remlab.net','win1710.ipv6.microsoft.com']
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(('0.0.0.0', 0))
-    prober = teredo_prober(sock, server_list, probe_nat_type=False)
+    prober = teredo_prober(server_list, probe_nat_type=False)
     prober.timeout = 4
     server_ip_list = prober.server_ip_list.copy()
     server_ip = server_ip_list.pop()
@@ -409,9 +422,10 @@ def test():
     for _ in range(2):
         print(prober.qualify_loop(server_ip))
         prober.rs_cone_flag = prober.rs_cone_flag ^ 1
-    prober.close()
+#    prober.close()
 
-#    print(main())
+    print(main())
+    raw_input('Press enter to over...')
     sys.exit(0)
 
 runas_vbs = '''
@@ -454,11 +468,7 @@ if os.name == 'nt':
             os.system(temp)
 
 if '__main__' == __name__:    
-    test()
-    try:
-        raw_input
-    except:
-        raw_input = input
+#    test()
     if os.name == 'nt':
         if raw_input('Stop teredo tunnel for run prober, Y/N? ').lower() == 'y':
             runas('netsh interface teredo set state disable')
