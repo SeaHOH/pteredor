@@ -4,13 +4,14 @@
 # A tool to help evaluate the teredo servers.
 # Thanks XndroidDev
 # Author: SeaHOH <seahoh@gmail.com>
-# Version: 0.0.1
 # Compatible: Python 2.7 & 3.4 & 3.5 & 3.6
 # References:
 #   https://tools.ietf.org/html/rfc4380 5.1 5.2
 #   https://tools.ietf.org/html/rfc4861 4.1 4.2
 #   https://tools.ietf.org/html/rfc2460 8.1
 #   https://github.com/XndroidDev/Xndroid/blob/master/fqrouter/manager/teredo.py
+
+__version__ = '0.1.0'
 
 import sys
 
@@ -129,13 +130,13 @@ class teredo_rs_packet(object):
             self._type_restricted = self.creat_rs_packet()
         return self._type_restricted
 
-def get_sock():
+def get_sock(port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     while True:
         try:
-            port = random.randint(1025, 5000)
-            print('try bind local port:', port)
-            sock.bind(('0.0.0.0', port))
+            _port = port or random.randint(1025, 5000)
+            print('try bind local port:', _port)
+            sock.bind(('0.0.0.0', _port))
             return sock
         except socket.error as e:
             if e.args[0] == errno.EADDRINUSE:
@@ -211,8 +212,10 @@ class teredo_prober(object):
     timeout = teredo_timeout
     teredo_port = teredo_port
 
-    def __init__(self, server_list, probe_nat_type=True):
-        self.teredo_sock = get_sock()
+    def __init__(self, server_list, local_port=None, remote_port=None, probe_nat=True):
+        self.teredo_sock = get_sock(local_port)
+        if remote_port:
+            self.teredo_port = remote_port
         self.prober_dict = collections.defaultdict(default_prober_dict)
         self.ip2server = collections.defaultdict(list)
         server_ip_list = []
@@ -232,7 +235,7 @@ class teredo_prober(object):
         if len(self.server_ip_list) < 1:
             raise Exception('Servers could not be resolved, %r.' % server_list)
         thread.start_new_thread(self.receive_loop, ())
-        if probe_nat_type:
+        if probe_nat:
             self.nat_type = self.nat_type_probe()
 
     def unpack_indication(self, data):
@@ -389,7 +392,7 @@ class teredo_prober(object):
             self.prober_dict.pop(server_ip, None)
         
 
-def main(*args):
+def main(*args, local_port=None, remote_port=None):
     server_list = [] + teredo_server_list
     for arg in args:
         if isinstance(arg, str):
@@ -398,7 +401,7 @@ def main(*args):
             server_list += arg
         elif isinstance(arg, tuple):
             server_list += list(arg)
-    prober = teredo_prober(server_list)
+    prober = teredo_prober(server_list, local_port=local_port, remote_port=remote_port)
     recommend = None
     if prober.nat_type == 'unknown':
         print('We can not judge the NAT type.')
@@ -429,7 +432,7 @@ def test():
     assert(teredo_rs_packet(nonce).type_restricted == bytes(blank_rs_packet))
 
     server_list = ['teredo.remlab.net','win1710.ipv6.microsoft.com']
-    prober = teredo_prober(server_list, probe_nat_type=False)
+    prober = teredo_prober(server_list, probe_nat=False)
     prober.timeout = 4
     server_ip_list = prober.server_ip_list.copy()
     server_ip = server_ip_list.pop()
@@ -469,7 +472,7 @@ WScript.quit
 '''
 
 local_ip_startswith = tuple(
-    ['127', '192.168', '10.'] +
+    ['192.168', '10.'] +
     ['100.%d.' % (64 + n) for n in range(1 << 6)] +
     ['172.%d.' % (16 + n) for n in range(1 << 4)]
     )
@@ -487,13 +490,46 @@ if os.name == 'nt':
 
 if '__main__' == __name__:    
 #    test()
+    args = sys.argv[1:]
+    if '-h' in args:
+        args.remove('-h')
+        print('''
+pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
+      -p  Set the local port num. (client)
+      -P  Set the remote port num. (server)
+      -h  Show this help.
+
+          The teredo server is a host name (domain or IP).
+
+''')
+    try:
+        local_port = args[args.index('-p') + 1]
+        args.remove('-p')
+        args.remove(local_port)
+        try:
+            local_port = int(local_port)
+        except:
+            local_port = None
+            print('The value of parameter "-p" error: local port must be a number.')
+    except:
+        local_port = None
+    try:
+        remote_port = args[args.index('-P') + 1]
+        args.remove('-P')
+        args.remove(remote_port)
+        try:
+            remote_port = int(remote_port)
+        except:
+            remote_port = None
+            print('The value of parameter "-P" error: remote port must be a number.')
+    except:
+        remote_port = None
     if os.name == 'nt':
         if raw_input('Stop teredo tunnel for run prober, Y/N? ').lower() == 'y':
             runas('netsh interface teredo set state disable')
             time.sleep(1)
             print(os.system('netsh interface teredo show state'))
-    args = sys.argv[1:]
-    recommend = main(*args)
+    recommend = main(*args, local_port=local_port, remote_port=remote_port)
     if recommend:
         print('\nThe recommend server is %r.' % recommend)
         if os.name == 'nt':
@@ -501,6 +537,6 @@ if '__main__' == __name__:
                 ip = [a for a in os.popen('route print').readlines() if ' 0.0.0.0 ' in a][0].split()[-2]
                 client = 'enterpriseclient' if ip.startswith(local_ip_startswith) else 'client'
                 runas('netsh interface teredo set state %s %s.' % (client, recommend[0]))
-                time.sleep(1)
+                time.sleep(10)
                 print(os.system('netsh interface teredo show state'))
     raw_input('Press enter to over...')
