@@ -49,7 +49,7 @@ or
 
 Output
 ```
-Stop teredo tunnel for run prober, Y/N?n
+Stop teredo tunnel for run prober, Y/N? n
 try bind local port: 2694
 Starting probe NAT type...
 The NAT type is cone.
@@ -61,6 +61,6 @@ Starting evaluate servers...
 195.140.195.140 ['teredo.trex.fi'] 374ms
 
 The recommend server is ['win10.ipv6.microsoft.com', 'win1710.ipv6.microsoft.com'].
-Do you want to set recommend teredo server, Y/N?n
+Do you want to set recommend teredo server, Y/N? n
 Press enter to over...
 ```

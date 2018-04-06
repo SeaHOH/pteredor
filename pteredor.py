@@ -160,7 +160,7 @@ def ip2int(ip):
     return struct.unpack('>I', socket.inet_aton(ip))[0]
 
 def remove_same_server(server_ip_list):
-    logger.debug('input ip: %%' % server_ip_list)
+    logger.debug('input ip: %s' % server_ip_list)
     cleared_list = set()
     for ip1 in server_ip_list:
         _ip1 = ip2int(ip1)
@@ -199,7 +199,6 @@ class default_prober_dict(dict):
 
     def __init__(self):
         self['nonce'] = None
-        self['addr'] = None
         self['rs_packet'] = None
         self['ra_packets'] = deque()
 
@@ -233,7 +232,9 @@ class teredo_prober(object):
         if len(self.server_ip_list) < 2:
             print('Need input more teredo servers, now is %d.' % len(self.server_ip_list))
         if len(self.server_ip_list) < 1:
-            raise Exception('Servers could not be resolved, %r.' % server_list)
+            msg = 'Servers could not be resolved, %r.' % server_list
+            print(msg)
+            raise Exception(msg)
         thread.start_new_thread(self.receive_loop, ())
         if probe_nat:
             self.nat_type = self.nat_type_probe()
@@ -277,11 +278,8 @@ class teredo_prober(object):
         if auth_pkt[4:12] != self.prober_dict[server_ip]['rs_packet'].nonce:
             logger.debug('ipv6_pkt ;3 drop:\n%s' % str2hex(data))
             return
-        ra_packet = {'addr': (server_ip, port),
-                     'nonce': auth_pkt[4:12],
-                     'qualify': (ra_cone_flag, indicate_pkt)
-                     }
-        self.prober_dict[server_ip]['ra_packets'].put(ra_packet)
+        qualified = ra_cone_flag, indicate_pkt
+        self.prober_dict[server_ip]['ra_packets'].put(qualified)
 
     def receive_loop(self):
         while not self._stoped:
@@ -306,12 +304,9 @@ class teredo_prober(object):
 
         begin_recv = time.time()
         while time.time() < self.timeout + begin_recv:
-            ra_packet = self.prober_dict[dst_ip]['ra_packets'].get()
-            if (ra_packet and
-                ra_packet['nonce'] == rs_packet.nonce and
-                ra_packet['addr'] == (dst_ip, self.teredo_port)
-                ):
-                return ra_packet['qualify']
+            qualified = self.prober_dict[dst_ip]['ra_packets'].get()
+            if qualified:
+                return qualified
             time.sleep(0.01)
 
     def qualify_loop(self, dst_ip):
@@ -323,56 +318,63 @@ class teredo_prober(object):
 
     def nat_type_probe(self):
         print('Starting probe NAT type...')
+        self.nat_type = 'probing'
         server_ip_list = self.server_ip_list.copy()
         self.rs_cone_flag = 1
         for server_ip in server_ip_list:
-            ra_qualify = self.qualify_loop(server_ip)
-            if ra_qualify:
+            qualified = self.qualify_loop(server_ip)
+            if qualified:
                 break
-        if ra_qualify is None:
+        if qualified is None:
             self.rs_cone_flag = 0
             while server_ip_list:
                 server_ip = server_ip_list.pop()
-                ra_qualify = self.qualify_loop(server_ip)
-                if ra_qualify:
+                qualified = self.qualify_loop(server_ip)
+                if qualified:
                     break
-        if ra_qualify is None:
-            self.qualified = True
+        if qualified is None:
+            self.qualified = False
             return 'offline'
-        ra_cone_flag, first_indicate = ra_qualify
+        ra_cone_flag, first_indicate = qualified
         if ra_cone_flag:
             self.qualified = True
             return 'cone'
-        ra_qualify = None
+        qualified = None
         for server_ip in  server_ip_list:
-            ra_qualify = self.qualify_loop(server_ip)
-            if ra_qualify:
+            qualified = self.qualify_loop(server_ip)
+            if qualified:
                 break
-        self.qualified = True
-        if ra_qualify is None:
+        if qualified is None:
             self.last_server_ip = server_ip
+            self.qualified = True
             return 'unknown'
-        ra_cone_flag, second_indicate = ra_qualify
+        ra_cone_flag, second_indicate = qualified
         if first_indicate == second_indicate:
+            self.qualified = True
             return 'restricted'
         else:
+            self.qualified = False
             return 'symmetric'
 
     def _eval_servers(self, server_ip, queue_obj):
         start = time.time()
-        ra_qualify = self.qualify_loop(server_ip)
+        qualified = self.qualify_loop(server_ip)
         cost = int((time.time() - start) * 1000)
-        queue_obj.put((bool(ra_qualify), self.ip2server[server_ip], server_ip, cost))
+        queue_obj.put((bool(qualified), self.ip2server[server_ip], server_ip, cost))
 
     def eval_servers(self):
-        eval_list = []
-        if not self.qualified:
+        if self.nat_type is 'null':
             self.nat_type = self.nat_type_probe()
-        if self.nat_type in ('symmetric', 'offline'):
+        elif self.nat_type is 'probing':
+            print('Is probing NAT type now, pleace wait...')
+        while self.nat_type is 'probing':
+            time.sleep(0.1)
+        if not self.qualified:
             print('This device can not use teredo tunnel, the NAT type is %s!' % prober.nat_type)
-            return eval_list
+            return []
         print('Starting evaluate servers...')
         self.clear()
+        eval_list = []
         queue_obj = queue.Queue()
         for server_ip in self.server_ip_list:
             thread.start_new_thread(self._eval_servers, (server_ip, queue_obj))
@@ -403,20 +405,17 @@ def main(*args, local_port=None, remote_port=None):
             server_list += list(arg)
     prober = teredo_prober(server_list, local_port=local_port, remote_port=remote_port)
     recommend = None
-    if prober.nat_type == 'unknown':
+    if not self.qualified:
+        print('This device can not use teredo tunnel, the NAT type is %s!' % prober.nat_type)
+    elif prober.nat_type is 'unknown':
         print('We can not judge the NAT type.')
         recommend = prober.last_server_ip
-    elif prober.nat_type in ('symmetric', 'offline'):
-        print('This device can not use teredo tunnel, the NAT type is %s!' % prober.nat_type)
-    elif prober.nat_type in ('cone', 'restricted'):
+    else:
         print('The NAT type is %s.' % prober.nat_type)
         qualified_list = prober.eval_servers()
         for qualified, server, server_ip, cost in qualified_list:
-            print('%s %s %sms' % (server_ip, server, cost))
-        for qualified, server, server_ip, cost in qualified_list:
-            if qualified:
-                recommend = server
-                break
+            print('%s %s %s' % (server_ip, server, '%sms' % cost if qualified else 'timedout'))
+        recommend = qualified_list[0][1]
     prober.close()
     return recommend
 
@@ -537,6 +536,7 @@ pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
                 ip = [a for a in os.popen('route print').readlines() if ' 0.0.0.0 ' in a][0].split()[-2]
                 client = 'enterpriseclient' if ip.startswith(local_ip_startswith) else 'client'
                 runas('netsh interface teredo set state %s %s.' % (client, recommend[0]))
+                print('Please wait 10 seconds...')
                 time.sleep(10)
                 print(os.system('netsh interface teredo show state'))
     raw_input('Press enter to over...')
