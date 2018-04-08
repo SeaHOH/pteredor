@@ -405,7 +405,7 @@ def main(*args, local_port=None, remote_port=None):
             server_list += list(arg)
     prober = teredo_prober(server_list, local_port=local_port, remote_port=remote_port)
     recommend = None
-    if not self.qualified:
+    if not prober.qualified:
         print('This device can not use teredo tunnel, the NAT type is %s!' % prober.nat_type)
     elif prober.nat_type is 'unknown':
         print('We can not judge the NAT type.')
