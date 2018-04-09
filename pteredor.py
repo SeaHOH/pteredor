@@ -423,13 +423,14 @@ import locale
 if locale.getdefaultlocale()[0] == 'zh_CN':
     help_info = u'''
 pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
-      -p  \u8bbe\u7f6e\u672c\u5730\u5ba2\u6237\u7aef\u7aef\u53e3
-      -P  \u8bbe\u7f6e\u8fdc\u7a0b\u670d\u52a1\u7aef\u7aef\u53e3
-      -h  \u663e\u793a\u672c\u5e2e\u52a9\u4fe1\u606f
+      -p  \u8bbe\u7f6e\u672c\u5730\u5ba2\u6237\u7aef\u7aef\u53e3\u3002
+      -P  \u8bbe\u7f6e\u8fdc\u7a0b\u670d\u52a1\u7aef\u7aef\u53e3\u3002
+      -h  \u663e\u793a\u672c\u5e2e\u52a9\u4fe1\u606f\u3002
 
           Teredo server \u662f\u4e00\u4e2a\u4e3b\u673a\u540d\uff0c\u53ef\u4ee5\u4f7f\u7528\u57df\u540d\u6216 IP\u3002
 
 '''
+    result_info = '\n\u7ecf\u68c0\u6d4b\uff0c\u63a8\u8350\u670d\u52a1\u5668\u662f %r.'
     wait_info = u'\u8bf7\u7b49\u5f85 10 \u79d2\u949f\u2026\u2026'
     resume_info = u'Teredo \u5ba2\u6237\u7aef\u5df2\u6062\u590d\u8fd0\u884c\u3002'
     warn_1 = u'\u53c2\u6570 "-p" \u9519\u8bef\uff1a\u7aef\u53e3\u5fc5\u987b\u662f\u4e00\u4e2a\u6570\u5b57\u3002'
@@ -452,6 +453,7 @@ pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
           The teredo server is a host name (domain or IP).
 
 '''
+    result_info = '\nThe recommend server is %r.'
     wait_info = 'Please wait 10 seconds...'
     resume_info = 'The teredo cilent has resumed.'
     warn_1 = 'The value of parameter "-p" error: local port must be a number.'
@@ -576,6 +578,7 @@ if '__main__' == __name__:
             print(os.system('netsh interface teredo show state'))
             done_disabled = True
     recommend, nat_type = main(*args, local_port=local_port, remote_port=remote_port)
+    print(result_info % recommend)
     if os.name == 'nt':
         ip = [a for a in os.popen('route print').readlines() if ' 0.0.0.0 ' in a][0].split()[-2]
         if nat_type == 'cone':
@@ -585,7 +588,6 @@ if '__main__' == __name__:
             client_ext = 'natawareclient' if int(platform.win32_ver()[0]) > 7 else 'enterpriseclient'
             client = client_ext if ip.startswith(local_ip_startswith) else 'client'
     if recommend:
-        print('\nThe recommend server is %r.' % recommend)
         if (os.name == 'nt' and
                 raw_input(confirm_set).lower() == 'y'):
             cmd = 'netsh interface teredo set state type=%s servername=%s.'
@@ -594,7 +596,7 @@ if '__main__' == __name__:
             if not remote_port:
                 cmd += ' clientport=default'
             runas(cmd % (client, recommend[0]))
-            print()
+            print(wait_info)
             time.sleep(10)
             print(os.system('netsh interface teredo show state'))
             done_disabled = False
