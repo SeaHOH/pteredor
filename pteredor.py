@@ -394,7 +394,7 @@ class teredo_prober(object):
             self.prober_dict.pop(server_ip, None)
         
 
-def main(*args, local_port=None, remote_port=None):
+def main(local_port=None, remote_port=None, *args):
     server_list = [] + teredo_server_list
     for arg in args:
         if isinstance(arg, str):
