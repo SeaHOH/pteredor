@@ -39,7 +39,13 @@ except:
     import _thread as thread
 
 try:
-    raw_input
+    _real_raw_input = raw_input
+    def raw_input(s='', file=sys.stderr):
+        if type(s) is type(u''):
+            file.write(s.encode(sys.getfilesystemencoding(), 'replace'))
+            return _real_raw_input()
+        else:
+            return _real_raw_input(s)
 except:
     raw_input = input
 
@@ -392,6 +398,84 @@ class teredo_prober(object):
     def clear(self):
         for server_ip in self.server_ip_list:
             self.prober_dict.pop(server_ip, None)
+
+runas_vbs = '''
+Dim objShell
+Set objShell = CreateObject("Shell.Application")
+objShell.ShellExecute "%s", "%s", "", "runas", 1
+Set objShell = NoThing
+
+Dim fso
+Set fso = CreateObject("scripting.FileSystemObject")
+fso.DeleteFile WScript.ScriptFullName
+Set fso = NoThing
+
+WScript.quit
+'''
+
+local_ip_startswith = tuple(
+    ['192.168', '10.'] +
+    ['100.%d.' % (64 + n) for n in range(1 << 6)] +
+    ['172.%d.' % (16 + n) for n in range(1 << 4)]
+    )
+
+import locale
+if locale.getdefaultlocale()[0] == 'zh_CN':
+    help_info = u'''
+pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
+      -p  \u8bbe\u7f6e\u672c\u5730\u5ba2\u6237\u7aef\u7aef\u53e3
+      -P  \u8bbe\u7f6e\u8fdc\u7a0b\u670d\u52a1\u7aef\u7aef\u53e3
+      -h  \u663e\u793a\u672c\u5e2e\u52a9\u4fe1\u606f
+
+          Teredo server \u662f\u4e00\u4e2a\u4e3b\u673a\u540d\uff0c\u53ef\u4ee5\u4f7f\u7528\u57df\u540d\u6216 IP\u3002
+
+'''
+    wait_info = u'\u8bf7\u7b49\u5f85 10 \u79d2\u949f\u2026\u2026'
+    resume_info = u'Teredo \u5ba2\u6237\u7aef\u5df2\u6062\u590d\u8fd0\u884c\u3002'
+    warn_1 = u'\u53c2\u6570 "-p" \u9519\u8bef\uff1a\u7aef\u53e3\u5fc5\u987b\u662f\u4e00\u4e2a\u6570\u5b57\u3002'
+    warn_2 = u'\u53c2\u6570 "-P" \u9519\u8bef\uff1a\u7aef\u53e3\u5fc5\u987b\u662f\u4e00\u4e2a\u6570\u5b57\u3002'
+    warn_3 = u'\u5f53\u524d\u8bbe\u5907\u53ef\u80fd\u65e0\u6cd5\u6b63\u5e38\u4f7f\u7528 teredo \u96a7\u9053\uff0cNAT \u7c7b\u578b\u662f %s\uff01'
+    warn_4 = u'\u65e0\u6cd5\u5224\u65ad NAT \u7c7b\u578b\u3002'
+    confirm_stop = u'\u662f\u5426\u5148\u6682\u65f6\u5173\u95ed teredo \u5ba2\u6237\u7aef\uff08IPv6\uff09\u518d\u8fdb\u884c\u6d4b\u8bd5\uff1f\uff08Y/N\uff09'
+    confirm_set = u'\u4f60\u60f3\u8981\u5c06 teredo \u670d\u52a1\u5668\u8bbe\u7f6e\u4e3a\u672c\u6d4b\u8bd5\u7684\u63a8\u8350\u503c\u5417\uff1f\uff08Y/N\uff09'
+    confirm_reset = u'\u4f60\u60f3\u8981\u91cd\u7f6e teredo \u5ba2\u6237\u7aef\u7684\u5237\u65b0\u95f4\u9694\u5417\uff1f\uff08Y/N\uff09'
+    confirm_over = u'\u6309\u56de\u8f66\u952e\u7ed3\u675f\u2026\u2026'
+    confirm_force = u'\u4f60\u60f3\u8981\u7ee7\u7eed\u8fdb\u884c\u6d4b\u8bd5\u5417\uff1f\uff08Y/N\uff09'
+    nat_type_result = u'NAT \u7c7b\u578b\u662f %s\u3002'
+else:
+    help_info = '''
+pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
+      -p  Set the local port num. (client)
+      -P  Set the remote port num. (server)
+      -h  Show this help.
+
+          The teredo server is a host name (domain or IP).
+
+'''
+    wait_info = 'Please wait 10 seconds...'
+    resume_info = 'The teredo cilent has resumed.'
+    warn_1 = 'The value of parameter "-p" error: local port must be a number.'
+    warn_2 = 'The value of parameter "-P" error: remote port must be a number.'
+    warn_3 = 'This device may not be able to use teredo tunnel, the NAT type is %s!'
+    warn_4 = 'We can not judge the NAT type.'
+    confirm_stop = 'Stop teredo cilent for run prober, Y/N? '
+    confirm_set = 'Do you want to set recommend teredo server, Y/N? '
+    confirm_reset = 'Do you want to reset refreshinterval to the default value, Y/N? '
+    confirm_over = 'Press enter to over...'
+    confirm_force = 'Do you want to force probe and set the teredo servers, Y/N? '
+    nat_type_result = 'The NAT type is %s.'
+
+if os.name == 'nt':
+    try:
+        socket.socket(socket.AF_INET, socket.SOCK_RAW)
+        runas = os.system
+    except:
+        def runas(cmd):
+            cmd = tuple(cmd.split(None, 1))
+            temp = str(int(random.random() * 10 ** 8)) + '.vbs'
+            with open(temp, 'w') as f:
+                f.write(runas_vbs % cmd)
+            os.system(temp)
         
 
 def main(local_port=None, remote_port=None, *args):
@@ -404,20 +488,26 @@ def main(local_port=None, remote_port=None, *args):
         elif isinstance(arg, tuple):
             server_list += list(arg)
     prober = teredo_prober(server_list, local_port=local_port, remote_port=remote_port)
-    recommend = None
+    need_probe = recommend = None
     if not prober.qualified:
-        print('This device can not use teredo tunnel, the NAT type is %s!' % prober.nat_type)
+        print(warn_3 % prober.nat_type)
+        if (prober.nat_type is 'symmetric' and 
+                raw_input(confirm_force).lower() == 'y'):
+            need_probe = True
+            prober.qualified = True
     elif prober.nat_type is 'unknown':
-        print('We can not judge the NAT type.')
+        print(warn_4)
         recommend = prober.last_server_ip
     else:
-        print('The NAT type is %s.' % prober.nat_type)
+        print(nat_type_result % prober.nat_type)
+        need_probe = True
+    if need_probe:
         qualified_list = prober.eval_servers()
         for qualified, server, server_ip, cost in qualified_list:
             print('%s %s %s' % (server_ip, server, '%sms' % cost if qualified else 'timedout'))
         recommend = qualified_list[0][1]
     prober.close()
-    return recommend
+    return recommend, prober.nat_type
 
 def test():
     logging.basicConfig(level=logging.DEBUG)
@@ -448,59 +538,14 @@ def test():
     raw_input('Press enter to over...')
     sys.exit(0)
 
-runas_vbs = '''
-If WScript.Arguments.length = 0 Then
-  Dim objShell
-  Set objShell = CreateObject("Shell.Application")
-  objShell.ShellExecute "wscript.exe", Chr(34) & WScript.ScriptFullName & Chr(34) & " uac", "", "runas", 1
-  Set objShell = NoThing
-  WScript.quit
-End If
-
-Dim Wsr
-Set Wsr = WScript.CreateObject("WScript.Shell")
-Wsr.Run "%s", 0, True
-Set Wsr = NoThing
-
-Dim fso
-Set fso = CreateObject("scripting.FileSystemObject")
-fso.DeleteFile WScript.ScriptFullName
-Set fso = NoThing
-
-WScript.quit
-'''
-
-local_ip_startswith = tuple(
-    ['192.168', '10.'] +
-    ['100.%d.' % (64 + n) for n in range(1 << 6)] +
-    ['172.%d.' % (16 + n) for n in range(1 << 4)]
-    )
-
-if os.name == 'nt':
-    try:
-        socket.socket(socket.AF_INET, socket.SOCK_RAW)
-        runas = os.system
-    except:
-        def runas(cmd):
-            temp = str(int(random.random() * 10 ** 8)) + '.vbs'
-            with open(temp, 'w') as f:
-                f.write(runas_vbs % cmd)
-            os.system(temp)
-
 if '__main__' == __name__:    
 #    test()
     args = sys.argv[1:]
     if '-h' in args:
         args.remove('-h')
-        print('''
-pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
-      -p  Set the local port num. (client)
-      -P  Set the remote port num. (server)
-      -h  Show this help.
-
-          The teredo server is a host name (domain or IP).
-
-''')
+        print(help_info)
+        if not args:
+            sys.exit(0)
     try:
         local_port = args[args.index('-p') + 1]
         args.remove('-p')
@@ -509,7 +554,7 @@ pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
             local_port = int(local_port)
         except:
             local_port = None
-            print('The value of parameter "-p" error: local port must be a number.')
+            print(warn_1)
     except:
         local_port = None
     try:
@@ -520,23 +565,40 @@ pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
             remote_port = int(remote_port)
         except:
             remote_port = None
-            print('The value of parameter "-P" error: remote port must be a number.')
+            print(warn_2)
     except:
         remote_port = None
+    done_disabled = False
     if os.name == 'nt':
-        if raw_input('Stop teredo tunnel for run prober, Y/N? ').lower() == 'y':
+        if raw_input(confirm_stop).lower() == 'y':
             runas('netsh interface teredo set state disable')
             time.sleep(1)
             print(os.system('netsh interface teredo show state'))
-    recommend = main(*args, local_port=local_port, remote_port=remote_port)
+            done_disabled = True
+    recommend, nat_type = main(*args, local_port=local_port, remote_port=remote_port)
+    if os.name == 'nt':
+        ip = [a for a in os.popen('route print').readlines() if ' 0.0.0.0 ' in a][0].split()[-2]
+        if nat_type == 'cone':
+            client = 'client'
+        else:
+            import platform
+            client_ext = 'natawareclient' if int(platform.win32_ver()[0]) > 7 else 'enterpriseclient'
+            client = client_ext if ip.startswith(local_ip_startswith) else 'client'
     if recommend:
         print('\nThe recommend server is %r.' % recommend)
-        if os.name == 'nt':
-            if raw_input('Do you want to set recommend teredo server, Y/N? ').lower() == 'y':
-                ip = [a for a in os.popen('route print').readlines() if ' 0.0.0.0 ' in a][0].split()[-2]
-                client = 'enterpriseclient' if ip.startswith(local_ip_startswith) else 'client'
-                runas('netsh interface teredo set state %s %s.' % (client, recommend[0]))
-                print('Please wait 10 seconds...')
-                time.sleep(10)
-                print(os.system('netsh interface teredo show state'))
-    raw_input('Press enter to over...')
+        if (os.name == 'nt' and
+                raw_input(confirm_set).lower() == 'y'):
+            cmd = 'netsh interface teredo set state type=%s servername=%s.'
+            if raw_input(confirm_reset).lower() == 'y':
+                cmd += 'refreshinterval=default'
+            if not remote_port:
+                cmd += ' clientport=default'
+            runas(cmd % (client, recommend[0]))
+            print()
+            time.sleep(10)
+            print(os.system('netsh interface teredo show state'))
+            done_disabled = False
+    if done_disabled:
+        runas('netsh interface teredo set state type=%s' % client)
+        print(resume_info)
+    raw_input(confirm_over)
