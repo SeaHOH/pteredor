@@ -537,7 +537,7 @@ def test():
 #    prober.close()
 
     print(main())
-    raw_input('Press enter to over...')
+    raw_input(confirm_over)
     sys.exit(0)
 
 if '__main__' == __name__:    
@@ -547,6 +547,7 @@ if '__main__' == __name__:
         args.remove('-h')
         print(help_info)
         if not args:
+            raw_input(confirm_over)
             sys.exit(0)
     try:
         local_port = args[args.index('-p') + 1]
