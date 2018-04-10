@@ -40,8 +40,8 @@ except:
 
 try:
     _real_raw_input = raw_input
-    def raw_input(s='', file=sys.stderr):
-        if type(s) is type(u''):
+    def raw_input(s='', file=sys.stdout):
+        if isinstance(s, unicode):
             file.write(s.encode(sys.getfilesystemencoding(), 'replace'))
             return _real_raw_input()
         else:
@@ -430,7 +430,7 @@ pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
           Teredo server \u662f\u4e00\u4e2a\u4e3b\u673a\u540d\uff0c\u53ef\u4ee5\u4f7f\u7528\u57df\u540d\u6216 IP\u3002
 
 '''
-    result_info = '\n\u7ecf\u68c0\u6d4b\uff0c\u63a8\u8350\u670d\u52a1\u5668\u662f %r.'
+    result_info = u'\n\u7ecf\u68c0\u6d4b\uff0c\u63a8\u8350\u670d\u52a1\u5668\u662f %r.'
     wait_info = u'\u8bf7\u7b49\u5f85 10 \u79d2\u949f\u2026\u2026'
     resume_info = u'Teredo \u5ba2\u6237\u7aef\u5df2\u6062\u590d\u8fd0\u884c\u3002'
     warn_1 = u'\u53c2\u6570 "-p" \u9519\u8bef\uff1a\u7aef\u53e3\u5fc5\u987b\u662f\u4e00\u4e2a\u6570\u5b57\u3002'
