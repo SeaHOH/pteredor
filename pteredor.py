@@ -217,7 +217,7 @@ class teredo_prober(object):
     timeout = teredo_timeout
     teredo_port = teredo_port
 
-    def __init__(self, server_list, local_port=None, remote_port=None, probe_nat=True):
+    def __init__(self, server_list=teredo_server_list, local_port=None, remote_port=None, probe_nat=True):
         self.teredo_sock = get_sock(local_port)
         if remote_port:
             self.teredo_port = remote_port
