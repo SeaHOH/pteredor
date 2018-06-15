@@ -222,7 +222,8 @@ class teredo_prober(object):
     timeout = teredo_timeout
     teredo_port = teredo_port
 
-    def __init__(self, server_list=teredo_server_list, local_port=None, remote_port=None, probe_nat=True):
+    def __init__(self, server_list=teredo_server_list, local_port=None,
+                 remote_port=None, probe_nat=True):
         self.teredo_sock = get_sock(local_port)
         if remote_port:
             self.teredo_port = remote_port
@@ -241,7 +242,8 @@ class teredo_prober(object):
                 server_ip_list += ip_list
         self.server_ip_list = remove_same_server(server_ip_list)
         if len(self.server_ip_list) < 2:
-            print('Need input more teredo servers, now is %d.' % len(self.server_ip_list))
+            print('Need input more teredo servers, now is %d.'
+                  % len(self.server_ip_list))
         if len(self.server_ip_list) < 1:
             msg = 'Servers could not be resolved, %r.' % server_list
             print(msg)
@@ -381,7 +383,8 @@ class teredo_prober(object):
         while self.nat_type is 'probing':
             time.sleep(0.1)
         if not self.qualified:
-            print('This device can not use teredo tunnel, the NAT type is %s!' % prober.nat_type)
+            print('This device can not use teredo tunnel, the NAT type is %s!'
+                  % prober.nat_type)
             return []
         print('Starting evaluate servers...')
         self.clear()
@@ -407,7 +410,7 @@ class teredo_prober(object):
 runas_vbs = '''
 Dim objShell
 Set objShell = CreateObject("Shell.Application")
-objShell.ShellExecute "%s", "%s", "", "runas", 1
+objShell.ShellExecute "%s", "%s", "", "runas", 0
 Set objShell = NoThing
 
 Dim fso
@@ -415,6 +418,7 @@ Set fso = CreateObject("scripting.FileSystemObject")
 fso.DeleteFile WScript.ScriptFullName
 Set fso = NoThing
 
+WScript.Sleep(1000)
 WScript.quit
 '''
 
@@ -433,7 +437,10 @@ except:
     if sys.platform == "darwin":
         try:
             oot = os.pipe()
-            p = subprocess.Popen(["/usr/bin/defaults", 'read', 'NSGlobalDomain', 'AppleLanguages'], stdout=oot[1])
+            p = subprocess.Popen(['/usr/bin/defaults',
+                                  'read',
+                                  'NSGlobalDomain',
+                                  'AppleLanguages'], stdout=oot[1])
             p.communicate()
             zh_locale = b'zh' in os.read(oot[0], 10000)
         except:
@@ -458,7 +465,8 @@ pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
     warn_4 = u'\u65e0\u6cd5\u5224\u65ad NAT \u7c7b\u578b\u3002'
     confirm_stop = u'\u662f\u5426\u5148\u6682\u65f6\u5173\u95ed teredo \u5ba2\u6237\u7aef\uff08IPv6\uff09\u518d\u8fdb\u884c\u6d4b\u8bd5\uff1f\uff08Y/N\uff09'
     confirm_set = u'\u4f60\u60f3\u8981\u5c06 teredo \u670d\u52a1\u5668\u8bbe\u7f6e\u4e3a\u672c\u6d4b\u8bd5\u7684\u63a8\u8350\u503c\u5417\uff1f\uff08Y/N\uff09'
-    confirm_reset = u'\u4f60\u60f3\u8981\u91cd\u7f6e teredo \u5ba2\u6237\u7aef\u7684\u5237\u65b0\u95f4\u9694\u5417\uff1f\uff08Y/N\uff09'
+    confirm_reset_1 = u'\u53d1\u73b0\u7ec4\u7b56\u7565 Teredo \u8bbe\u7f6e\uff0c\u662f\u5426\u91cd\u7f6e\uff1f\uff08Y/N\uff09'
+    confirm_reset_2 = u'\u4f60\u60f3\u8981\u91cd\u7f6e teredo \u5ba2\u6237\u7aef\u7684\u5237\u65b0\u95f4\u9694\u5417\uff1f\uff08Y/N\uff09'
     confirm_over = u'\u6309\u56de\u8f66\u952e\u7ed3\u675f\u2026\u2026'
     confirm_force = u'\u4f60\u60f3\u8981\u7ee7\u7eed\u8fdb\u884c\u6d4b\u8bd5\u5417\uff1f\uff08Y/N\uff09'
     nat_type_result = u'NAT \u7c7b\u578b\u662f %s\u3002'
@@ -481,7 +489,8 @@ pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
     warn_4 = 'We can not judge the NAT type.'
     confirm_stop = 'Stop teredo cilent for run prober, Y/N? '
     confirm_set = 'Do you want to set recommend teredo server, Y/N? '
-    confirm_reset = 'Do you want to reset refreshinterval to the default value, Y/N? '
+    confirm_reset_1 = 'Teredo setting found in group policy, do you want to reset it, Y/N? '
+    confirm_reset_2 = 'Do you want to reset refreshinterval to the default value, Y/N? '
     confirm_over = 'Press enter to over...'
     confirm_force = 'Do you want to force probe and set the teredo servers, Y/N? '
     nat_type_result = 'The NAT type is %s.'
@@ -497,7 +506,29 @@ if os.name == 'nt':
             with open(temp, 'w') as f:
                 f.write(runas_vbs % cmd)
             os.system(temp)
-        
+
+    def reset_gp():
+        gp_regpol_file = os.environ['windir'] + r'\System32\GroupPolicy\Machine\Registry.pol'
+        if not os.path.exists(gp_regpol_file):
+            return
+        gp_split = b'[\x00'
+        gp_teredo = b'v\x006\x00T\x00r\x00a\x00n\x00s\x00i\x00t\x00i\x00o\x00n\x00\x00\x00;\x00T\x00e\x00r\x00e\x00d\x00o\x00'
+        with open(gp_regpol_file, 'rb') as f:
+            gp_regpol_old = f.read()
+        gp_regpol_new = gp_split.join(gp for gp in gp_regpol_old.split(gp_split) if gp_teredo not in gp)
+        if gp_regpol_new != gp_regpol_old and raw_input(confirm_reset_1).lower() == 'y':
+            import tempfile
+            import platform
+            gp_regpol_file_temp = tempfile.mktemp()
+            with open(gp_regpol_file_temp, 'wb') as f:
+                f.write(gp_regpol_new)
+            runas('xcopy %s %s /h /y' % (gp_regpol_file_temp, gp_regpol_file))
+            os.remove(gp_regpol_file_temp)
+            if platform.version() < '5.1':
+                # Windows 5.0
+                os.system('secedit /refreshpolicy machine_policy /enforce')
+            else:
+                os.system('gpupdate /target:computer /force')
 
 def main(local_port=None, remote_port=None, *args):
     server_list = [] + teredo_server_list
@@ -596,6 +627,7 @@ if '__main__' == __name__:
             runas('netsh interface teredo set state disable')
             time.sleep(1)
             done_disabled = True
+        reset_gp()
         print(os.system('netsh interface teredo show state'))
     recommend, nat_type = main(*args, local_port=local_port, remote_port=remote_port)
     print(result_info % recommend)
@@ -608,10 +640,10 @@ if '__main__' == __name__:
             client_ext = 'natawareclient' if platform.version()[0] > '6' else 'enterpriseclient'
             client = client_ext if ip.startswith(local_ip_startswith) else 'client'
     if recommend:
-        if (os.name == 'nt' and
-                raw_input(confirm_set).lower() == 'y'):
+        if os.name == 'nt' and \
+                raw_input(confirm_set).lower() == 'y':
             cmd = 'netsh interface teredo set state type=%s servername=%s.'
-            if raw_input(confirm_reset).lower() == 'y':
+            if raw_input(confirm_reset_2).lower() == 'y':
                 cmd += ' refreshinterval=default'
             if not remote_port:
                 cmd += ' clientport=default'
