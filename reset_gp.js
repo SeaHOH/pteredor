@@ -49,9 +49,17 @@ for (var i=0; i<gp_regpol_old.length; i++) {
 
 var result;
 if (gp_regpol_new.length != gp_regpol_old.length) {
+    var LangId = Wsr.RegRead('HKEY_CURRENT_USER\\Control Panel\\International\\Locale');
+    if (LangId == '00000804') {
+        var message = '\u53d1\u73b0 Teredo \u7ec4\u7b56\u7565\u8bbe\u7f6e\uff0c\u662f\u5426\u91cd\u7f6e\uff1f';
+        var title = '\u63d0\u793a';
+    } else {
+        var message = 'Found Group Policy Teredo settings, do you want to reset it?';
+        var title = 'Notice';
+    }
     result = MessageBox.Show(
-        'Found Group Policy Teredo settings, do you want to reset it?',
-        'Notice',
+        message,
+        title,
         MessageBoxButtons.OKCancel,
         MessageBoxIcon.Warning,
         MessageBoxDefaultButton.Button1

@@ -469,7 +469,6 @@ pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
     confirm_over = u'\u6309\u56de\u8f66\u952e\u7ed3\u675f\u2026\u2026'
     confirm_force = u'\u4f60\u60f3\u8981\u7ee7\u7eed\u8fdb\u884c\u6d4b\u8bd5\u5417\uff1f\uff08Y/N\uff09'
     nat_type_result = u'NAT \u7c7b\u578b\u662f %s\u3002'
-    reset_gp = 'reset_gp_zh.exe'
 else:
     help_info = '''
 pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
@@ -493,7 +492,6 @@ pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
     confirm_over = 'Press enter to over...'
     confirm_force = 'Do you want to force probe and set the teredo servers, Y/N? '
     nat_type_result = 'The NAT type is %s.'
-    reset_gp = 'reset_gp.exe'
 
 if os.name == 'nt':
     try:
@@ -502,6 +500,8 @@ if os.name == 'nt':
     except:
         def runas(cmd):
             cmd = tuple(cmd.split(None, 1))
+            if len(cmd) == 1:
+                cmd += '',
             temp = str(int(random.random() * 10 ** 8)) + '.vbs'
             with open(temp, 'w') as f:
                 f.write(runas_vbs % cmd)
@@ -604,7 +604,7 @@ if '__main__' == __name__:
             runas('netsh interface teredo set state disable')
             time.sleep(1)
             done_disabled = True
-        os.system(os.path.join(os.path.dirname(os.path.abspath(__file__)), reset_gp))
+        runas(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reset_gp.exe'))
         print(os.system('netsh interface teredo show state'))
     recommend, nat_type = main(*args, local_port=local_port, remote_port=remote_port)
     print(result_info % recommend)
