@@ -2,6 +2,7 @@
 # run as admin in Windows
 
 import os
+import sys
 import ctypes
 from ctypes import c_ulong, c_char_p, c_int, c_void_p
 from ctypes.wintypes import HANDLE, DWORD, HWND, HINSTANCE, HKEY

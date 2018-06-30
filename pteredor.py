@@ -480,7 +480,7 @@ pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
 
 if os.name == 'nt':
     import win32runas
-    if win32runas:
+    if win32runas.is_admin():
         runas = os.system
     else:
         def runas(cmd):
@@ -585,7 +585,9 @@ if '__main__' == __name__:
         if raw_input(confirm_stop).lower() == 'y':
             runas('netsh interface teredo set state disable')
             done_disabled = True
-        runas(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reset_gp.exe'))
+        reset_gp_exe = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reset_gp.exe')
+        if os.path.exists(reset_gp_exe):
+            runas(reset_gp_exe)
         print(os.system('netsh interface teredo show state'))
     recommend, nat_type = main(*args, local_port=local_port, remote_port=remote_port)
     print(result_info % recommend)
