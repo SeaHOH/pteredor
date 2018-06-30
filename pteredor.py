@@ -407,21 +407,6 @@ class teredo_prober(object):
         for server_ip in self.server_ip_list:
             self.prober_dict.pop(server_ip, None)
 
-runas_vbs = '''
-Dim objShell
-Set objShell = CreateObject("Shell.Application")
-objShell.ShellExecute "%s", "%s", "", "runas", 0
-Set objShell = NoThing
-
-Dim fso
-Set fso = CreateObject("scripting.FileSystemObject")
-fso.DeleteFile WScript.ScriptFullName
-Set fso = NoThing
-
-WScript.Sleep(1000)
-WScript.quit
-'''
-
 local_ip_startswith = tuple(
     ['192.168', '10.'] +
     ['100.%d.' % (64 + n) for n in range(1 << 6)] +
@@ -494,18 +479,15 @@ pteredor [-p <port>] [-P <port>] [-h] [<server1> [<server2> [...]]]
     nat_type_result = 'The NAT type is %s.'
 
 if os.name == 'nt':
-    try:
-        socket.socket(socket.AF_INET, socket.SOCK_RAW)
+    import win32runas
+    if win32runas:
         runas = os.system
-    except:
+    else:
         def runas(cmd):
             cmd = tuple(cmd.split(None, 1))
             if len(cmd) == 1:
-                cmd += '',
-            temp = str(int(random.random() * 10 ** 8)) + '.vbs'
-            with open(temp, 'w') as f:
-                f.write(runas_vbs % cmd)
-            os.system(temp)
+                cmd += None,
+            win32runas.runas(cmd[1], cmd[0])
 
 def main(local_port=None, remote_port=None, *args):
     server_list = [] + teredo_server_list
@@ -567,7 +549,7 @@ def test():
     raw_input(confirm_over)
     sys.exit(0)
 
-if '__main__' == __name__:    
+if '__main__' == __name__:
 #    test()
     args = sys.argv[1:]
     if '-h' in args:
@@ -602,7 +584,6 @@ if '__main__' == __name__:
     if os.name == 'nt':
         if raw_input(confirm_stop).lower() == 'y':
             runas('netsh interface teredo set state disable')
-            time.sleep(1)
             done_disabled = True
         runas(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reset_gp.exe'))
         print(os.system('netsh interface teredo show state'))
