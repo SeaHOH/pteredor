@@ -58,8 +58,6 @@ if os.name == 'nt':
 
 def runas(args=__file__, executable=sys.executable, cwd=None,
           nShow=1, waitClose=True, waitTimeout=-1):
-    if is_admin():
-        return
     if not 0 <= nShow <= 10:
         nShow = 1
     err = None
@@ -67,7 +65,7 @@ def runas(args=__file__, executable=sys.executable, cwd=None,
         pExecInfo = ShellExecuteInfo()
         pExecInfo.cbSize = ctypes.sizeof(pExecInfo)
         pExecInfo.fMask |= SEE_MASK_NOCLOSEPROCESS
-        pExecInfo.lpVerb = b'runas'
+        pExecInfo.lpVerb = b'open' if is_admin() b'runas'
         pExecInfo.lpFile = encode_for_locale(executable)
         pExecInfo.lpParameters = encode_for_locale(args)
         pExecInfo.lpDirectory = encode_for_locale(cwd)
