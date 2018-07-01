@@ -65,7 +65,7 @@ def runas(args=__file__, executable=sys.executable, cwd=None,
         pExecInfo = ShellExecuteInfo()
         pExecInfo.cbSize = ctypes.sizeof(pExecInfo)
         pExecInfo.fMask |= SEE_MASK_NOCLOSEPROCESS
-        pExecInfo.lpVerb = b'open' if is_admin() b'runas'
+        pExecInfo.lpVerb = b'open' if is_admin() else b'runas'
         pExecInfo.lpFile = encode_for_locale(executable)
         pExecInfo.lpParameters = encode_for_locale(args)
         pExecInfo.lpDirectory = encode_for_locale(cwd)
