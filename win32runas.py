@@ -4,6 +4,7 @@
 import os
 import sys
 import ctypes
+import subprocess
 from ctypes import c_ulong, c_char_p, c_int, c_void_p
 from ctypes.wintypes import HANDLE, DWORD, HWND, HINSTANCE, HKEY
 
@@ -55,13 +56,16 @@ if os.name == 'nt':
         31: 'File association not available',
         32: 'Dynamic-link library not found',
     }
+    sys.argv[0] = os.path.abspath(sys.argv[0])
 
-def runas(args=__file__, executable=sys.executable, cwd=None,
+def runas(args=sys.argv, executable=sys.executable, cwd=None,
           nShow=1, waitClose=True, waitTimeout=-1):
     if not 0 <= nShow <= 10:
         nShow = 1
     err = None
     try:
+        if not isinstance(args, str):
+            args = subprocess.list2cmdline(sys.argv)
         pExecInfo = ShellExecuteInfo()
         pExecInfo.cbSize = ctypes.sizeof(pExecInfo)
         pExecInfo.fMask |= SEE_MASK_NOCLOSEPROCESS
