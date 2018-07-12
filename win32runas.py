@@ -64,8 +64,8 @@ def runas(args=sys.argv, executable=sys.executable, cwd=None,
         nShow = 1
     err = None
     try:
-        if not isinstance(args, str):
-            args = subprocess.list2cmdline(sys.argv)
+        if args is not None and not isinstance(args, str):
+            args = subprocess.list2cmdline(args)
         pExecInfo = ShellExecuteInfo()
         pExecInfo.cbSize = ctypes.sizeof(pExecInfo)
         pExecInfo.fMask |= SEE_MASK_NOCLOSEPROCESS
@@ -77,6 +77,7 @@ def runas(args=sys.argv, executable=sys.executable, cwd=None,
         if ShellExecuteEx(pExecInfo):
             if waitClose:
                 WaitForSingleObject(pExecInfo.hProcess, waitTimeout)
+                return True
             else:
                 return pExecInfo.hProcess
         else:
