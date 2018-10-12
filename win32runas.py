@@ -18,7 +18,16 @@ def is_admin():
 def encode_for_locale(s):
     if s is None:
         return
-    return s.encode('mbcs')
+    try:
+        return s.encode('mbcs')
+    except Exception as e:
+        if isinstance(s, bytes):
+            try:
+                return s.decode('utf8').encode('mbcs')
+            except:
+                return s
+        else:
+            raise e
 
 if os.name == 'nt':
     class ShellExecuteInfo(ctypes.Structure):
@@ -62,7 +71,6 @@ def runas(args=sys.argv, executable=sys.executable, cwd=None,
           nShow=1, waitClose=True, waitTimeout=-1):
     if not 0 <= nShow <= 10:
         nShow = 1
-    err = None
     try:
         if args is not None and not isinstance(args, str):
             args = subprocess.list2cmdline(args)
@@ -81,8 +89,16 @@ def runas(args=sys.argv, executable=sys.executable, cwd=None,
             else:
                 return pExecInfo.hProcess
         else:
-            err = SE_ERR_CODES.get(pExecInfo.hInstApp, 'unknown')
+            se_err = SE_ERR_CODES.get(pExecInfo.hInstApp)
+            if se_err:
+                err = ctypes.WinError()
+                err.strerror = '%s: %s' % (se_err, err.strerror)
+                raise err
+            else:
+                raise ctypes.WinError()
     except Exception as e:
-        err = e
-    if err:
-        print('runas failed! error: %r' % err)
+        print('runas failed! error: %s' % e)
+
+if __name__ == '__main__':
+    if len(sys.argv) > 1:
+       runas(sys.argv[2:], sys.argv[1])

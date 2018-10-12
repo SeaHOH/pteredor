@@ -150,6 +150,9 @@ def get_sock(port):
             sock.bind(('0.0.0.0', _port))
             return sock
         except socket.error as e:
+            if port:
+                print('bind local port %d fail: %r' % (_port, e))
+                return
             if e.args[0] == errno.EADDRINUSE:
                 pass
 
@@ -170,8 +173,8 @@ def resolve(host):
 def ip2int(ip):
     return struct.unpack('>I', socket.inet_aton(ip))[0]
 
-def int2ip(ip):
-    return socket.inet_ntoa(struct.pack('>I', ip))
+def int2ip(int):
+    return socket.inet_ntoa(struct.pack('>I', int))
 
 def get_second_server_ip(ip):
     return int2ip(ip2int(ip) + 1)
@@ -333,7 +336,11 @@ class teredo_prober(object):
             time.sleep(0.01)
 
     def qualify_loop(self, server_ip, second_server=None):
-        second_server_ip = get_second_server_ip(server_ip) if second_server else None
+        if second_server:
+            self.rs_cone_flag = 0
+            second_server_ip = get_second_server_ip(server_ip) 
+        else:
+            second_server_ip = None
         for i in range(3):
             try:
                 return self.qualify(server_ip, second_server_ip)
@@ -364,7 +371,6 @@ class teredo_prober(object):
             self.qualified = True
             return 'cone'
         qualified = None
-        self.rs_cone_flag = 0
         qualified = self.qualify_loop(server_ip, second_server=True)
         if qualified is None:
             self.last_server_ip = server_ip
@@ -596,7 +602,7 @@ if '__main__' == __name__:
         if raw_input(confirm_stop).lower() == 'y':
             if runas('netsh interface teredo set state disable'):
                 done_disabled = True
-        win32runas.runas("win_reset_gp.py")
+        win32runas.runas('win_reset_gp.py')
         print(os.system('netsh interface teredo show state'))
     recommend, nat_type = main(*args, local_port=local_port, remote_port=remote_port)
     print(result_info % recommend)
