@@ -2,9 +2,9 @@
 # coding:utf-8
 
 # A tool to help evaluate the teredo servers.
-# Thanks XndroidDev
 # Author: SeaHOH <seahoh@gmail.com>
-# Compatible: Python 2.7 & 3.4 & 3.5 & 3.6
+# Compatible: Python 2.7 and above
+# Thanks XndroidDev <XndroidDev@gmail.com>
 # References:
 #   https://tools.ietf.org/html/rfc4380 5.1 5.2
 #   https://tools.ietf.org/html/rfc4861 4.1 4.2
@@ -14,10 +14,6 @@
 __version__ = '0.1.0'
 
 import sys
-
-if sys.platform == 'win32' and sys.version_info[0] < 3:
-    import win_inet_pton
-
 import os
 import socket
 import random
@@ -27,6 +23,8 @@ import time
 import logging
 import select
 import errno
+
+import socket_inet_p
 
 try:
     import queue
@@ -59,6 +57,7 @@ all_router_multicast = 'ff02::2'
 teredo_server_list = [
     # limited
     #'teredo.ginzado.ne.jp',
+
     # disuse
     #'debian-miredo.progsoc.org',
     #'teredo.autotrans.consulintel.com',
@@ -66,10 +65,13 @@ teredo_server_list = [
     #'teredo.managemydedi.com',
     #'teredo.ipv6.microsoft.com',
     #'win8.ipv6.microsoft.com',
+
+    # inuse
     'teredo.remlab.net',
     'teredo2.remlab.net',
     'teredo-debian.remlab.net',
     'teredo.trex.fi',
+    'teredo.nic.cz',
     'teredo.iks-jena.de',
     'win10.ipv6.microsoft.com',
     'win1710.ipv6.microsoft.com',
@@ -77,7 +79,7 @@ teredo_server_list = [
     ]
 
 def creat_rs_nonce():
-    return struct.pack('d', random.randint(0, 1<<62))
+    return struct.pack('d', random.randint(0, 1 << 62))
 
 def creat_ipv6_rs_msg(checksum=None):
     return struct.pack('!2BH4x', 133, 0, checksum or 0)
@@ -548,7 +550,7 @@ def test():
     blank_rs_packet[4:12] = nonce
     assert(teredo_rs_packet(nonce).type_restricted == bytes(blank_rs_packet))
 
-    server_list = ['teredo.remlab.net','win1710.ipv6.microsoft.com']
+    server_list = ['teredo.remlab.net','win1711.ipv6.microsoft.com']
     prober = teredo_prober(server_list, probe_nat=False)
     prober.timeout = 4
     server_ip_list = prober.server_ip_list.copy()
@@ -560,14 +562,14 @@ def test():
     for _ in range(2):
         print(prober.qualify_loop(server_ip))
         prober.rs_cone_flag = prober.rs_cone_flag ^ 1
-#    prober.close()
+    #prober.close()
 
     print(main())
     raw_input(confirm_over)
     sys.exit(0)
 
 if '__main__' == __name__:
-#    test()
+    #test()
     args = sys.argv[1:]
     if '-h' in args:
         args.remove('-h')
